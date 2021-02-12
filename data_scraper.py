@@ -4,19 +4,44 @@ import numpy as np
 import pickle
 
 def scrape_motion_data(directory, filename):
+    """
+    Scrapes motion data for all vehicles in a UDP packet
+    Used as a helper function for scrape_udp_data (not meant to be called independently)
+
+    Parameters:
+    - directory: the directory containing the udp packets
+    - filename: the filename of the packet
+
+    Returns: timestamp associated with packet, array of motion data
+
+    Data Format: [x-pos, y-pos, z-pos, x-vel, y-vel, z-vel, x-forwarddir, y-forwarddir, z-forwarddir, x-rightdir, y-rightdir, z-rightdir]
+    """
     motion_file = open(directory + filename)
     data = json.load(motion_file)["udpPacket"]
     motion_data = data["mCarMotionData"]
-    saved_motion_data = np.zeros((len(motion_data), 6))
+    saved_motion_data = np.zeros((len(motion_data), 12))
     for i in range(len(motion_data)):
-        saved_motion_data[i] = [motion_data[i]["mWorldPositionX"], motion_data[i]["mWorldPositionY"],
-                                motion_data[i]["mWorldPositionZ"], motion_data[i]["mWorldVelocityX"],
-                                motion_data[i]["mWorldVelocityY"], motion_data[i]["mWorldVelocityZ"]] # forward vector, right direction vector (normalize)
+        saved_motion_data[i] = [motion_data[i]["mWorldPositionX"], motion_data[i]["mWorldPositionY"], motion_data[i]["mWorldPositionZ"], 
+                                motion_data[i]["mWorldVelocityX"], motion_data[i]["mWorldVelocityY"], motion_data[i]["mWorldVelocityZ"],
+                                motion_data[i]["mWorldForwardDirX"], motion_data[i]["mWorldForwardDirY"], motion_data[i]["mWorldForwardDirZ"],
+                                motion_data[i]["mWorldRightDirX"], motion_data[i]["mWorldRightDirY"], motion_data[i]["mWorldRightDirZ"]]
     timestamp = data["mHeader"]["mSessionTime"]
     return timestamp, saved_motion_data
 
 
 def scrape_telemetry_data(directory, filename):
+    """
+    Scrapes telemetry data for all vehicles in a UDP packet
+    Used as a helper function for scrape_udp_data (not meant to be called independently)
+
+    Parameters:
+    - directory: the directory containing the udp packets
+    - filename: the filename of the packet
+
+    Returns: timestamp associated with the packet, array of telemetry data
+
+    Data Format: [throttle, steer, brake]
+    """
     telemetry_file = open(directory + filename)
     data = json.load(telemetry_file)["udpPacket"]
     telemetry_data = data["mCarTelemetryData"]
@@ -27,6 +52,16 @@ def scrape_telemetry_data(directory, filename):
     return timestamp, saved_telemetry_data
 
 def merge_udp_data(motion_data, telemetry_data):
+    """
+    Combines udp data collected from the motion and telemetry packets
+    Used as a helper function for scrape_udp_data (not meant to be called independently)
+
+    Parameters:
+    - motion_data: dictionary of the motion udp data (timestamp -> data)
+    - telemetry_data: dictionary of the telemetry udp data (timestamp -> data)
+
+    Returns: combined dictionary mapping timestamps to all data fields
+    """
     udp_data = {}
     mismatch_count = 0
     for timestamp in motion_data.keys():
@@ -39,6 +74,17 @@ def merge_udp_data(motion_data, telemetry_data):
          
 
 def scrape_udp_data(motion_directory, telemetry_directory):
+    """
+    Collects all udp data within the specified directories
+
+    Parameters:
+    - motion_directory: directory containing the motion udp data
+    - telemetry_directory: directory containing the telemetry udp data
+
+    Saves: saves dictionary file as a pickle serializable object
+
+    Data Format: [x-pos, y-pos, z-pos, x-vel, y-vel, z-vel, x-forwarddir, y-forwarddir, z-forwarddir, x-rightdir, y-rightdir, z-rightdir, throttle, steer, brake]
+    """
     full_motion_data = {}
     full_telemetry_data = {}
     for filename in os.listdir(motion_directory):
@@ -52,13 +98,17 @@ def scrape_udp_data(motion_directory, telemetry_directory):
     pickle.dump(udp_data, file)
     file.close()
     
-def retrieve_data(timestamp):
-    file = open("udp_data.pkl", "rb")
+def fetch_data(filename, timestamp): # edit to retrieve from a time range
+    """
+    Opens and reads data from pickle file
+
+    Parameters:
+    - filename: name of pickle object file
+    - timestamp: the desired time at which the data was collected
+
+    Returns: array containing data at specified timestamp
+    file = open(filename, "rb")
     udp_data = pickle.load(file)
     print(type(udp_data))
     file.close()
     return udp_data[timestamp]
-
-
-# scrape_udp_data(r"australia_run1/udp_data/motion_packets/", r"australia_run1/udp_data/car_telemetry_packets/")
-print(retrieve_data(4.59999609))
