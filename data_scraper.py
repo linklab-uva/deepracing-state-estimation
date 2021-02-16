@@ -69,7 +69,7 @@ def merge_udp_data(motion_data, telemetry_data):
             udp_data[timestamp] = np.concatenate((motion_data[timestamp], telemetry_data[timestamp]), axis=1)
         except KeyError:
             mismatch_count += 1
-    print("There were a total of", mismatch_count, "file(s) that did not have completed data.")
+    print("There was a total of", mismatch_count, "file(s) that did not have completed data.")
     return udp_data
          
 
