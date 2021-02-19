@@ -10,9 +10,13 @@ The data scraped from the F1 racing simulator is in the form of a UDP packet. De
   Given that there are 20 cars on the track during each race, the overall shape of the array at a given session time is (20,15).
   
   The [visualize.py](visualize.py) module provides two methods for visualizing the extracted UDP data. The `plot_position_data` method plots the position of all cars on the (X,Z) plane (where Y represents elevation). Viewing this graph is a good indicator as to what the shape of the racetrack looks like. An example plot of the Australia Park Grand Prix Circuit is shown below.
-  
- ![](Images/position_graph.PNG)
+ 
+<p align="center">
+<img src="Images/position_graph.PNG" width="400" height="300"/>
+</p>
   
   The `plot_steering_velocity` method plots the magnitude of the ego vehicle's velocity and the steering angle as a function of time for the first 50 seconds of the race. An example plot is shown below.
   
- ![](Images/steering_velo_graph.PNG)
+<p align="center">
+<img src="Images/steering_velo_graph.PNG" width="400" height="300"/>
+</p>
