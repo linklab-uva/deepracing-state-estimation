@@ -1,29 +1,10 @@
 # UDP Packet Information
 
 The data scraped from the F1 racing simulator is in the form of a UDP packet. Details on the structure and contents of the packets can be found [here](https://forums.codemasters.com/topic/30601-f1-2018-udp-specification/). The data_scraped.py module extracts this data and stores it in a python dictionary for easy lookup by session time, and then serializes the dictionary as a pickle file for storage. The structure of the data is as follows.
-
-<center>
   
-|Index| Data                |
-|:---:|---------------------|
-| Key | Session Time        |
-| 0   | X-Position          |
-| 1   | Y-Position          |
-| 2   | Z-Position          |
-| 3   | X-Velocity          |
-| 4   | Y-Velocity          |
-| 5   | Z-Velocity          |
-| 6   | X-Forward Direction |
-| 7   | Y-Forward Direction |
-| 8   | Z-Forward Direction |
-| 9   | X-Right Direction   |
-| 10  | Y-Right Direction   |
-| 11  | Z-Right Direction   |
-| 12  | Throttle            |
-| 13  | Steering Angle      |
-| 14  | Brake               |
-
-  </center>
+  | Index | Key          | 0     | 1     | 2     | 3      | 4      | 5      | 6             | 7             | 8             | 9           | 10          | 11          | 12       | 13       | 14    |
+|:-----:|--------------|-------|-------|-------|--------|--------|--------|---------------|---------------|---------------|-------------|-------------|-------------|----------|----------|-------|
+| Data  | Session Time | X-Pos | Y-Pos | Z-Pos | X-Velo | Y-Velo | Z-Velo | X-Forward Dir | Y-Forward Dir | Z-Forward Dir | X-Right Dir | Y-Right Dir | Z-Right Dir | Throttle | Steering | Brake |
   
   Given that there are 20 cars on the track during each race, the overall shape of the array at a given session time is (20,15).
   
