@@ -73,13 +73,15 @@ def merge_udp_data(motion_data, telemetry_data):
     return udp_data
          
 
-def scrape_udp_data(motion_directory, telemetry_directory):
+def scrape_udp_data(motion_directory, telemetry_directory, filename="udp_data.pkl"):
     """
     Collects all udp data within the specified directories
 
     Parameters:
     - motion_directory: directory containing the motion udp data
     - telemetry_directory: directory containing the telemetry udp data
+    - filename: name of pickle file to store scraped data (must be of format *.pkl)
+                defaults to "udp_data.pkl"
 
     Saves: saves dictionary file as a pickle serializable object
 
@@ -98,7 +100,7 @@ def scrape_udp_data(motion_directory, telemetry_directory):
         timestamp, telemetry_data = scrape_telemetry_data(telemetry_directory, filename)
         full_telemetry_data[timestamp] = telemetry_data
     udp_data = merge_udp_data(full_motion_data, full_telemetry_data)
-    file = open("udp_data.pkl", "wb")
+    file = open(filename, "wb")
     pickle.dump(udp_data, file)
     file.close()
     
@@ -154,3 +156,34 @@ def fetch_data_range(start_time, end_time, filename):
     else:
         print("No timestamps exist within specified range")
         return None
+
+def read_scraped_data(filename):
+    """
+    Reads udp data stored from scrape_udp_data
+
+    Parameters:
+    - filename: name of udp pickle file
+
+    Returns: 3d numpy array of data sorted by timestamp
+    """
+    file = open(filename, "rb")
+    udp_data = pickle.load(file)
+    file.close()
+    udp_array = np.empty((0, 20, 15)) # 20 cars per packet, 15 variables per car
+    for timestamp in sorted(udp_data.keys()):
+        udp_array = np.append(udp_array, [udp_data[timestamp]], axis=0)
+    return udp_array
+
+def read_processed_data(filename):
+    """
+    Reads udp data stored from preprocessing
+
+    Parameters:
+    - filename: name of udp pickle file
+
+    Returns: 3d numpy array of data formatted for input to a RNN
+    """
+    file = open(filename, 'rb')
+    udp_array = pickle.load(file)
+    file.close()
+    return udp_array

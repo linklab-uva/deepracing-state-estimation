@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import pickle
-from data_scraper import fetch_data_range
+from data_scraper import fetch_data_range, read_data
 
 def plot_position_data(filename):
     """
@@ -10,9 +10,7 @@ def plot_position_data(filename):
     Parameters:
     - filename: filename of udp pickle file
     """
-    file = open(filename, "rb")
-    udp_data = pickle.load(file)
-    file.close()
+    udp_data = read_data(filename)
     x_position = np.asarray(list(udp_data.values()))[:, :, 0]
     z_position = np.asarray(list(udp_data.values()))[:, :, 2]
     plt.plot(x_position, z_position, 'r.')
