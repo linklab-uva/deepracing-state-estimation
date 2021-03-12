@@ -87,22 +87,27 @@ def scrape_udp_data(motion_directory, telemetry_directory, filename="udp_data.pk
 
     Data Format: [x-pos, y-pos, z-pos, x-vel, y-vel, z-vel, x-forwarddir, y-forwarddir, z-forwarddir, x-rightdir, y-rightdir, z-rightdir, throttle, steer, brake]
     """
-    full_motion_data = {}
-    full_telemetry_data = {}
-    if motion_directory[-1] != "/":
-        motion_directory += "/"
-    if telemetry_directory[-1] != "/":
-        telemetry_directory += "/"
-    for filename in os.listdir(motion_directory):
-        timestamp, motion_data = scrape_motion_data(motion_directory, filename)
-        full_motion_data[timestamp] = motion_data
-    for filename in os.listdir(telemetry_directory):
-        timestamp, telemetry_data = scrape_telemetry_data(telemetry_directory, filename)
-        full_telemetry_data[timestamp] = telemetry_data
-    udp_data = merge_udp_data(full_motion_data, full_telemetry_data)
-    file = open(filename, "wb")
-    pickle.dump(udp_data, file)
-    file.close()
+    try:
+        file = open(filename, "rb")
+        print("Pickle file already exists")
+        file.close()
+    except FileNotFoundError:
+        full_motion_data = {}
+        full_telemetry_data = {}
+        if motion_directory[-1] != "/":
+            motion_directory += "/"
+        if telemetry_directory[-1] != "/":
+            telemetry_directory += "/"
+        for f in os.listdir(motion_directory):
+            timestamp, motion_data = scrape_motion_data(motion_directory, f)
+            full_motion_data[timestamp] = motion_data
+        for f in os.listdir(telemetry_directory):
+            timestamp, telemetry_data = scrape_telemetry_data(telemetry_directory, f)
+            full_telemetry_data[timestamp] = telemetry_data
+        udp_data = merge_udp_data(full_motion_data, full_telemetry_data)
+        file = open(filename, "wb")
+        pickle.dump(udp_data, file)
+        file.close()
     
 def fetch_data(timestamp, filename):
     """
