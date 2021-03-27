@@ -27,53 +27,8 @@ def scrape_motion_data(directory, filename):
                                 motion_data[i]["mWorldRightDirX"], motion_data[i]["mWorldRightDirY"], motion_data[i]["mWorldRightDirZ"]]
     timestamp = data["mHeader"]["mSessionTime"]
     return timestamp, saved_motion_data
-
-
-def scrape_telemetry_data(directory, filename):
-    """
-    Scrapes telemetry data for all vehicles in a UDP packet
-    Used as a helper function for scrape_udp_data (not meant to be called independently)
-
-    Parameters:
-    - directory: the directory containing the udp packets
-    - filename: the filename of the packet
-
-    Returns: timestamp associated with the packet, array of telemetry data
-
-    Data Format: [throttle, steer, brake]
-    """
-    telemetry_file = open(directory + filename)
-    data = json.load(telemetry_file)["udpPacket"]
-    telemetry_data = data["mCarTelemetryData"]
-    saved_telemetry_data = np.zeros((len(telemetry_data), 3))
-    for i in (range(len(telemetry_data))):
-        saved_telemetry_data[i] = [telemetry_data[i]["mThrottle"], telemetry_data[i]["mSteer"], telemetry_data[i]["mBrake"]]
-    timestamp = data["mHeader"]["mSessionTime"]
-    return timestamp, saved_telemetry_data
-
-def merge_udp_data(motion_data, telemetry_data):
-    """
-    Combines udp data collected from the motion and telemetry packets
-    Used as a helper function for scrape_udp_data (not meant to be called independently)
-
-    Parameters:
-    - motion_data: dictionary of the motion udp data (timestamp -> data)
-    - telemetry_data: dictionary of the telemetry udp data (timestamp -> data)
-
-    Returns: combined dictionary mapping timestamps to all data fields
-    """
-    udp_data = {}
-    mismatch_count = 0
-    for timestamp in motion_data.keys():
-        try:
-            udp_data[timestamp] = np.concatenate((motion_data[timestamp], telemetry_data[timestamp]), axis=1)
-        except KeyError:
-            mismatch_count += 1
-    print("There was a total of", mismatch_count, "file(s) that did not have completed data.")
-    return udp_data
          
-
-def scrape_udp_data(motion_directory, telemetry_directory, filename="udp_data.pkl"):
+def scrape_udp_data(motion_directory, filename="udp_data.pkl"):
     """
     Collects all udp data within the specified directories
 
@@ -85,26 +40,19 @@ def scrape_udp_data(motion_directory, telemetry_directory, filename="udp_data.pk
 
     Saves: saves dictionary file as a pickle serializable object
 
-    Data Format: [x-pos, y-pos, z-pos, x-vel, y-vel, z-vel, x-forwarddir, y-forwarddir, z-forwarddir, x-rightdir, y-rightdir, z-rightdir, throttle, steer, brake]
+    Data Format: [x-pos, y-pos, z-pos, x-vel, y-vel, z-vel, x-forwarddir, y-forwarddir, z-forwarddir, x-rightdir, y-rightdir, z-rightdir]
     """
     try:
         file = open(filename, "rb")
         print("Pickle file already exists")
         file.close()
     except FileNotFoundError:
-        full_motion_data = {}
-        full_telemetry_data = {}
+        udp_data = {}
         if motion_directory[-1] != "/":
             motion_directory += "/"
-        if telemetry_directory[-1] != "/":
-            telemetry_directory += "/"
         for f in os.listdir(motion_directory):
             timestamp, motion_data = scrape_motion_data(motion_directory, f)
             full_motion_data[timestamp] = motion_data
-        for f in os.listdir(telemetry_directory):
-            timestamp, telemetry_data = scrape_telemetry_data(telemetry_directory, f)
-            full_telemetry_data[timestamp] = telemetry_data
-        udp_data = merge_udp_data(full_motion_data, full_telemetry_data)
         file = open(filename, "wb")
         pickle.dump(udp_data, file)
         file.close()
@@ -174,7 +122,7 @@ def read_scraped_data(filename):
     file = open(filename, "rb")
     udp_data = pickle.load(file)
     file.close()
-    udp_array = np.empty((0, 20, 15)) # 20 cars per packet, 15 variables per car
+    udp_array = np.empty((0, 20, 12)) # 20 cars per packet, 12 variables per car
     for timestamp in sorted(udp_data.keys()):
         udp_array = np.append(udp_array, [udp_data[timestamp]], axis=0)
     return udp_array

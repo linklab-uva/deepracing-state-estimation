@@ -16,8 +16,8 @@ def transform_data_for_rnn(filename, buffer_size):
     Saves: If the files were not previously found, pickle files are saved with the names "X_data.pkl" for features and "y_data.pkl" for labels
     """
     try:
-        X_data = read_processed_data("X_data.pkl")
-        y_data = read_processed_data("y_data.pkl")
+        X_data = read_processed_data("X_data_" + str(buffer_size) + ".pkl")
+        y_data = read_processed_data("y_data_" + str(buffer_size) + ".pkl")
     except FileNotFoundError:
         print("Could not find processed data files. Creating new files...")
         udp_data = read_scraped_data(filename)
@@ -27,11 +27,29 @@ def transform_data_for_rnn(filename, buffer_size):
             for j in range(udp_data.shape[1]):  # iterating over cars in data sample
                 X_data = np.append(X_data, [np.ndarray.flatten(udp_data[(i - buffer_size + 1):i+1, j, :])], axis=0)  # transforms 5 previous feature vectors into a single row (shape = buffer size * number of features)
                 y_data = np.append(y_data, [np.ndarray.flatten(udp_data[(i + 1):(i + buffer_size + 1), j, 0:3])], axis=0)  # transforms 5 future position vectors into a single row (shape = buffer size * number of labels)
-        file = open("X_data.pkl", "wb")
+        X_data = normalize_vectors(X_data)
+        file = open("X_data_" + str(buffer_size) + ".pkl", "wb")
         pickle.dump(X_data, file)
         file.close()
-        file = open("y_data.pkl", "wb")
+        file = open("y_data_" + str(buffer_size) + ".pkl", "wb")
         pickle.dump(y_data, file)
         file.close()
     finally:
         return X_data, y_data
+
+def normalize_vectors(X_data):
+    """
+    Normalize feature vectors in filename
+    
+    Parameters:
+    - X_data: numpy array containing preprocessed feature data
+    
+    Returns: Feature data with normalized vectors
+    """
+    for i in range(X_data.shape[0]):
+        for j in range(X_data.shape[1] // 3):  # dividing by three to account for 3 components per vector
+            magnitude = np.sqrt(X_data[i,3*j]**2 + X_data[i,3*j+1]**2 + X_data[i,3*j+2]**2)  # calculates magnitude of vector
+            if magnitude != 0:
+                X_data[i, 3*j:3*j+3] = X_data[i, 3*j:3*j+3] / magnitude
+    return X_data
+
