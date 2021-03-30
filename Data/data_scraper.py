@@ -75,10 +75,9 @@ def fetch_data(timestamp, filename):
     try:
         return udp_data[timestamp]
     except KeyError:
-        print("Timestamp not found. Closest value to desired time was used.")
         data_copy = np.asarray(list(udp_data.keys()))
         idx = (np.abs(data_copy - timestamp)).argmin()
-        print(data_copy[idx])
+        print("Timestamp not found. Closest value to desired time was used: ", data_copy[idx])
         return udp_data[data_copy[idx]]
 
 def fetch_data_range(start_time, end_time, filename):

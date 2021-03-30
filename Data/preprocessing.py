@@ -1,6 +1,8 @@
 import numpy as np
 from tqdm import tqdm
 import pickle
+import math
+from shapely.geometry import Polygon, Point
 from data_scraper import read_scraped_data, read_processed_data
 
 def transform_data_for_rnn(filename, buffer_size):
@@ -27,7 +29,7 @@ def transform_data_for_rnn(filename, buffer_size):
             for j in range(udp_data.shape[1]):  # iterating over cars in data sample
                 X_data = np.append(X_data, [np.ndarray.flatten(udp_data[(i - buffer_size + 1):i+1, j, :])], axis=0)  # transforms 5 previous feature vectors into a single row (shape = buffer size * number of features)
                 y_data = np.append(y_data, [np.ndarray.flatten(udp_data[(i + 1):(i + buffer_size + 1), j, 0:3])], axis=0)  # transforms 5 future position vectors into a single row (shape = buffer size * number of labels)
-        X_data = normalize_vectors(X_data)
+        # X_data = normalize_vectors(X_data)
         file = open("X_data_" + str(buffer_size) + ".pkl", "wb")
         pickle.dump(X_data, file)
         file.close()
@@ -53,3 +55,36 @@ def normalize_vectors(X_data):
                 X_data[i, 3*j:3*j+3] = X_data[i, 3*j:3*j+3] / magnitude
     return X_data
 
+def filter_data_in_view(filename, height, base):
+    """
+    Filter data to represent vehicles that are in the field of view of the vehicle
+    Note: the vehicle ID of the ego was chosen to be vehicle #20
+    
+    Parameters:
+    - filename: name of udp file
+    - height: height of the field of view triangle
+    - base: base of the field of view triangle
+
+    Data Format:
+    - first row at each index is the vectorized data of the ego vehicle
+    - the remaining rows either contain the vectorized data of the other vehicles (if they are in the field of view) or are zero padded if not 
+    
+    Returns: Filtered data in 3-d matrix form
+    """
+    udp_data = read_scraped_data(filename)
+    filtered_data = np.zeros((udp_data.shape[0], udp_data.shape[1], udp_data.shape[2]))
+    for i in tqdm(range(udp_data.shape[0])):
+        x = udp_data[i][-1][0]
+        z = udp_data[i][-1][2]
+        theta = math.atan(udp_data[i][-1][5] / udp_data[i][-1][3])
+        phi = math.atan(base/(2*height))
+        length = height / math.cos(phi)
+        p1 = (x, z)
+        p2 = (length*math.cos(theta - phi) + x, length*math.sin(theta - phi) + z)
+        p3 = (length*math.cos(theta + phi) + x, length*math.sin(theta + phi) + z)
+        view_triangle = Polygon([p1, p2, p3])
+        filtered_data[i,0,:] = udp_data[i,-1,:]
+        for vehicle_id in range(0, udp_data.shape[1]-1):
+            if view_triangle.contains(Point(udp_data[i][vehicle_id][0], udp_data[i][vehicle_id][2])):
+                filtered_data[i,vehicle_id+1,:] = udp_data[i,vehicle_id,:]
+    return filtered_data

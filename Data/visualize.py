@@ -1,7 +1,10 @@
 import matplotlib.pyplot as plt
+import matplotlib.path as mpltPath
 import numpy as np
 import pickle
-from data_scraper import fetch_data_range, read_scraped_data
+import math
+from shapely.geometry import Polygon, Point
+from data_scraper import fetch_data_range, read_scraped_data, fetch_data
 
 def plot_position_data(filename):
     """
@@ -69,4 +72,34 @@ def visualize_waypoint_predictions(labels, predictions):
     plt.ylabel("Z-Position")
     plt.title("Model Predictions vs. Labels")
     plt.legend()
+    plt.show()
+
+def visualize_ego_view(filename, height, base, timestamp):
+    """
+    Plots the field of view for the ego vehicle and the positions of cars that are in the field of view
+    Note: ego vehicle chosen to be vehicle with ID 20 because it almost always has at least one car in its field of view
+
+    Parameters:
+    - filename: name of udp file
+    - height: height of field of view triangle
+    - base: base of field of view triangle
+    - timestamp: the timestamp to visualize
+    """
+    udp_data = fetch_data(timestamp, filename)
+    x = udp_data[-1][0]
+    z = udp_data[-1][2]
+    theta = math.atan(udp_data[-1][5] / udp_data[-1][3])
+    phi = math.atan(base/(2*height))
+    length = height / math.cos(phi)
+    p1 = (x, z)
+    p2 = (length*math.cos(theta - phi) + x, length*math.sin(theta - phi) + z)
+    p3 = (length*math.cos(theta + phi) + x, length*math.sin(theta + phi) + z)
+    view_triangle = Polygon([p1, p2, p3])
+    for i in range(udp_data.shape[0]):
+        if view_triangle.contains(Point(udp_data[i][0], udp_data[i][2])):
+            plt.plot(udp_data[i][0],udp_data[i][2], 'bo')
+        else:
+            plt.plot(udp_data[i][0],udp_data[i][2], 'rx')
+    x1,y1 = view_triangle.exterior.xy
+    plt.plot(x1,y1)
     plt.show()
