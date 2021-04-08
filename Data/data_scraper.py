@@ -52,7 +52,7 @@ def scrape_udp_data(motion_directory, filename="udp_data.pkl"):
             motion_directory += "/"
         for f in os.listdir(motion_directory):
             timestamp, motion_data = scrape_motion_data(motion_directory, f)
-            full_motion_data[timestamp] = motion_data
+            udp_data[timestamp] = motion_data
         file = open(filename, "wb")
         pickle.dump(udp_data, file)
         file.close()

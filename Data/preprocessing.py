@@ -3,7 +3,7 @@ from tqdm import tqdm
 import pickle
 import math
 from shapely.geometry import Polygon, Point
-from data_scraper import read_scraped_data, read_processed_data
+from .data_scraper import read_scraped_data, read_processed_data
 
 def transform_data_for_rnn(filename, buffer_size):
     """

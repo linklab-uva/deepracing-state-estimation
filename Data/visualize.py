@@ -4,7 +4,7 @@ import numpy as np
 import pickle
 import math
 from shapely.geometry import Polygon, Point
-from data_scraper import fetch_data_range, read_scraped_data, fetch_data
+from .data_scraper import fetch_data_range, read_scraped_data, fetch_data
 
 def plot_position_data(filename):
     """
