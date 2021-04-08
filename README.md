@@ -20,3 +20,7 @@ The data scraped from the F1 racing simulator is in the form of a UDP packet. De
 <p align="center">
 <img src="images/steering_velo_graph.PNG" width="400" height="300"/>
 </p>
+
+For guidance on how to use the libraries for mining and preprocessing data, see [project_walkthrough.ipynb](project_walkthrough.ipynb).
+
+For guidance on how to use the libraries for training an RNN model with the data, see [model_testing.ipynb](model_testing.ipynb).
