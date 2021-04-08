@@ -3,7 +3,7 @@ from tqdm import tqdm
 import pickle
 import math
 from shapely.geometry import Polygon, Point
-from .data_scraper import read_scraped_data, read_processed_data
+from data_scraper import read_scraped_data, read_processed_data
 
 def transform_data_for_rnn(filename, buffer_size):
     """
@@ -18,8 +18,8 @@ def transform_data_for_rnn(filename, buffer_size):
     Saves: If the files were not previously found, pickle files are saved with the names "X_data.pkl" for features and "y_data.pkl" for labels
     """
     try:
-        X_data = read_processed_data("X_data_" + str(buffer_size) + ".pkl")
-        y_data = read_processed_data("y_data_" + str(buffer_size) + ".pkl")
+        X_data = read_processed_data("data/X_data_" + str(buffer_size) + ".pkl")
+        y_data = read_processed_data("data/y_data_" + str(buffer_size) + ".pkl")
     except FileNotFoundError:
         print("Could not find processed data files. Creating new files...")
         udp_data = read_scraped_data(filename)
