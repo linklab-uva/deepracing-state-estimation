@@ -57,7 +57,7 @@ def scrape_udp_data(motion_directory, filename="udp_data.pkl"):
         pickle.dump(udp_data, file)
         file.close()
     
-def fetch_data(timestamp, filename):
+def fetch_timestamp_data(timestamp, filename):
     """
     Opens and reads data from pickle file, returns data at specified timestamp
     If timestamp is not found in data, returns data with closest timestamp to desired time
@@ -109,7 +109,7 @@ def fetch_data_range(start_time, end_time, filename):
         print("No timestamps exist within specified range")
         return None
 
-def read_scraped_data(filename):
+def read_scraped_data(filename, packet_num=None):
     """
     Reads udp data stored from scrape_udp_data
 
@@ -124,6 +124,9 @@ def read_scraped_data(filename):
     udp_array = np.empty((0, 20, 12)) # 20 cars per packet, 12 variables per car
     for timestamp in sorted(udp_data.keys()):
         udp_array = np.append(udp_array, [udp_data[timestamp]], axis=0)
+        if packet_num is not None:
+            if udp_array.shape[0] == packet_num:
+                return udp_array[packet_num-1]
     return udp_array
 
 def read_processed_data(filename):

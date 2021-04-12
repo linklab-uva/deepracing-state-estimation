@@ -74,17 +74,48 @@ def filter_data_in_view(filename, height, base):
     udp_data = read_scraped_data(filename)
     filtered_data = np.zeros((udp_data.shape[0], udp_data.shape[1], udp_data.shape[2]))
     for i in tqdm(range(udp_data.shape[0])):
-        x = udp_data[i][-1][0]
-        z = udp_data[i][-1][2]
-        theta = math.atan(udp_data[i][-1][5] / udp_data[i][-1][3])
+        x = udp_data[i][19][0]
+        z = udp_data[i][19][2]
+        theta = math.atan(udp_data[i][19][8] / udp_data[i][19][6])
+        if udp_data[i][19][6] < 0:
+            theta += math.pi
         phi = math.atan(base/(2*height))
         length = height / math.cos(phi)
         p1 = (x, z)
         p2 = (length*math.cos(theta - phi) + x, length*math.sin(theta - phi) + z)
         p3 = (length*math.cos(theta + phi) + x, length*math.sin(theta + phi) + z)
         view_triangle = Polygon([p1, p2, p3])
-        filtered_data[i,0,:] = udp_data[i,-1,:]
-        for vehicle_id in range(0, udp_data.shape[1]-1):
-            if view_triangle.contains(Point(udp_data[i][vehicle_id][0], udp_data[i][vehicle_id][2])):
-                filtered_data[i,vehicle_id+1,:] = udp_data[i,vehicle_id,:]
+        for vehicle_id in range(0, udp_data.shape[1]):
+            if view_triangle.contains(Point(udp_data[i][vehicle_id][0], udp_data[i][vehicle_id][2])) or vehicle_id == 19:
+                filtered_data[i,vehicle_id,:] = udp_data[i,vehicle_id,:]
     return filtered_data
+
+def pointDirectionToPose(udp_data : np.ndarray):
+    ego_positions = np.expand_dims(udp_data[19,0:3], axis=0)
+    ego_forward_vectors = np.expand_dims(udp_data[19,6:9], axis=0)
+    ego_right_vectors = np.expand_dims(udp_data[19,9:], axis=0)
+    positions = udp_data[:,0:3]
+    if ego_positions.ndim!=2 or ego_positions.shape[1]!=3:
+        raise ValueError("Invalid input shape for ego_positions. ego_positions must have shape [N x 3], but got shape: " + str(positions.shape))
+    if ego_forward_vectors.ndim!=2 or ego_forward_vectors.shape[1]!=3:
+        raise ValueError("Invalid input shape for ego_forward_vectors. ego_forward_vectors must have shape [N x 3], but got shape: " + str(forward_vectors.shape))
+    if ego_right_vectors.ndim!=2 or ego_right_vectors.shape[1]!=3:
+        raise ValueError("Invalid input shape for ego_right_vectors. ego_right_vectors must have shape [N x 3], but got shape: " + str(right_vectors.shape))
+    npoints = ego_positions.shape[0]
+    poses = np.stack([np.eye(4, dtype=ego_positions.dtype) for i in range(npoints)])
+    z = ego_forward_vectors/np.linalg.norm(ego_forward_vectors, ord=2, axis=1)[:,None]
+    x = (-1.0*ego_right_vectors)/np.linalg.norm(ego_right_vectors, ord=2, axis=1)[:,None]
+    y = np.cross(z,x,axis=1)
+    y = y/np.linalg.norm(y, ord=2, axis=1)[:,None]
+
+    poses[:,0:3,0:3] = np.stack([x,y,z],axis=1)
+    poses[:,0:3,3] = ego_positions
+
+    transform = np.linalg.inv(poses.squeeze())
+    positions = np.empty((0, 4))
+    for i in range(udp_data.shape[0]):
+        if not np.all((udp_data[i] == 0)) or i == 19:
+            positions = np.append(positions, np.expand_dims(np.dot(transform, np.append(udp_data[i][0:3], 1.)), axis=0), axis=0)
+        else:
+            positions = np.append(positions, np.asarray([[0,0,0,0]]), axis=0) # appends all zeros if not in ego field of view
+    return positions
