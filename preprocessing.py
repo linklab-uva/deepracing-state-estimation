@@ -91,31 +91,33 @@ def filter_data_in_view(filename, height, base):
     return filtered_data
 
 def pointDirectionToPose(udp_data : np.ndarray):
-    ego_positions = np.expand_dims(udp_data[19,0:3], axis=0)
-    ego_forward_vectors = np.expand_dims(udp_data[19,6:9], axis=0)
-    ego_right_vectors = np.expand_dims(udp_data[19,9:], axis=0)
     positions = udp_data[:,0:3]
-    if ego_positions.ndim!=2 or ego_positions.shape[1]!=3:
-        raise ValueError("Invalid input shape for ego_positions. ego_positions must have shape [N x 3], but got shape: " + str(positions.shape))
-    if ego_forward_vectors.ndim!=2 or ego_forward_vectors.shape[1]!=3:
-        raise ValueError("Invalid input shape for ego_forward_vectors. ego_forward_vectors must have shape [N x 3], but got shape: " + str(forward_vectors.shape))
-    if ego_right_vectors.ndim!=2 or ego_right_vectors.shape[1]!=3:
-        raise ValueError("Invalid input shape for ego_right_vectors. ego_right_vectors must have shape [N x 3], but got shape: " + str(right_vectors.shape))
-    npoints = ego_positions.shape[0]
-    poses = np.stack([np.eye(4, dtype=ego_positions.dtype) for i in range(npoints)])
-    z = ego_forward_vectors/np.linalg.norm(ego_forward_vectors, ord=2, axis=1)[:,None]
-    x = (-1.0*ego_right_vectors)/np.linalg.norm(ego_right_vectors, ord=2, axis=1)[:,None]
+    forward_vectors = udp_data[:,6:9]
+    right_vectors = udp_data[:,9:]
+    if positions.ndim!=2 or positions.shape[1]!=3:
+        raise ValueError("Invalid input shape for positions. positions must have shape [N x 3], but got shape: " + str(positions.shape))
+    if forward_vectors.ndim!=2 or forward_vectors.shape[1]!=3:
+        raise ValueError("Invalid input shape for forward_vectors. ego_forward_vectors must have shape [N x 3], but got shape: " + str(forward_vectors.shape))
+    if right_vectors.ndim!=2 or right_vectors.shape[1]!=3:
+        raise ValueError("Invalid input shape for right_vectors. right_vectors must have shape [N x 3], but got shape: " + str(right_vectors.shape))
+    npoints = positions.shape[0]
+    poses = np.stack([np.eye(4, dtype=positions.dtype) for i in range(npoints)])
+    z = forward_vectors/(np.linalg.norm(forward_vectors, ord=2, axis=1)[:,None])
+    x = (-1.0*right_vectors)/(np.linalg.norm(right_vectors, ord=2, axis=1)[:,None])
     y = np.cross(z,x,axis=1)
     y = y/np.linalg.norm(y, ord=2, axis=1)[:,None]
 
-    poses[:,0:3,0:3] = np.stack([x,y,z],axis=1)
-    poses[:,0:3,3] = ego_positions
+    #I think np.stack is bugged... just explicitly set each column for now
+    poses[:,0:3,0] = x
+    poses[:,0:3,1] = y
+    poses[:,0:3,2] = z
+    poses[:,0:3,3] = positions
 
-    transform = np.linalg.inv(poses.squeeze())
-    positions = np.empty((0, 4))
-    for i in range(udp_data.shape[0]):
-        if not np.all((udp_data[i] == 0)) or i == 19:
-            positions = np.append(positions, np.expand_dims(np.dot(transform, np.append(udp_data[i][0:3], 1.)), axis=0), axis=0)
-        else:
-            positions = np.append(positions, np.asarray([[0,0,0,0]]), axis=0) # appends all zeros if not in ego field of view
-    return positions
+    transform = np.linalg.inv(poses[-1])
+
+    #numpy takes care of the broadcasting semantics for us
+    #(4x4) X (N x 4 x 4) = (N x 4 x 4)
+    #This just multiplies "transform" by ALL of the matrices in "poses"
+    poses_local = np.matmul(transform, poses)
+
+    return poses, poses_local
