@@ -2,6 +2,8 @@ import os
 import json
 import numpy as np
 import pickle
+from matplotlib.image import imread
+from tqdm import tqdm
 
 def scrape_motion_data(directory, filename):
     """
@@ -12,23 +14,24 @@ def scrape_motion_data(directory, filename):
     - directory: the directory containing the udp packets
     - filename: the filename of the packet
 
-    Returns: timestamp associated with packet, array of motion data
+    Returns: timestamp (system time) associated with packet, array of motion data
 
     Data Format: [x-pos, y-pos, z-pos, x-vel, y-vel, z-vel, x-forwarddir, y-forwarddir, z-forwarddir, x-rightdir, y-rightdir, z-rightdir]
     """
     motion_file = open(directory + filename)
-    data = json.load(motion_file)["udpPacket"]
-    motion_data = data["mCarMotionData"]
+    data = json.load(motion_file)
+    motion_file.close()
+    motion_data = data["udpPacket"]["mCarMotionData"]
     saved_motion_data = np.zeros((len(motion_data), 12))
     for i in range(len(motion_data)):
         saved_motion_data[i] = [motion_data[i]["mWorldPositionX"], motion_data[i]["mWorldPositionY"], motion_data[i]["mWorldPositionZ"], 
                                 motion_data[i]["mWorldVelocityX"], motion_data[i]["mWorldVelocityY"], motion_data[i]["mWorldVelocityZ"],
                                 motion_data[i]["mWorldForwardDirX"], motion_data[i]["mWorldForwardDirY"], motion_data[i]["mWorldForwardDirZ"],
                                 motion_data[i]["mWorldRightDirX"], motion_data[i]["mWorldRightDirY"], motion_data[i]["mWorldRightDirZ"]]
-    timestamp = data["mHeader"]["mSessionTime"]
+    timestamp = data["timestamp"]
     return timestamp, saved_motion_data
          
-def scrape_udp_data(motion_directory, filename="udp_data.pkl"):
+def scrape_udp_data(motion_directory):
     """
     Collects all udp data within the specified directories
 
@@ -43,7 +46,7 @@ def scrape_udp_data(motion_directory, filename="udp_data.pkl"):
     Data Format: [x-pos, y-pos, z-pos, x-vel, y-vel, z-vel, x-forwarddir, y-forwarddir, z-forwarddir, x-rightdir, y-rightdir, z-rightdir]
     """
     try:
-        file = open(filename, "rb")
+        file = open("udp_data.pkl", "rb")
         print("Pickle file already exists")
         file.close()
     except FileNotFoundError:
@@ -53,11 +56,11 @@ def scrape_udp_data(motion_directory, filename="udp_data.pkl"):
         for f in os.listdir(motion_directory):
             timestamp, motion_data = scrape_motion_data(motion_directory, f)
             udp_data[timestamp] = motion_data
-        file = open(filename, "wb")
+        file = open("udp_data.pkl", "wb")
         pickle.dump(udp_data, file)
         file.close()
     
-def fetch_timestamp_data(timestamp, filename):
+def fetch_timestamp_data(timestamp):
     """
     Opens and reads data from pickle file, returns data at specified timestamp
     If timestamp is not found in data, returns data with closest timestamp to desired time
@@ -69,7 +72,7 @@ def fetch_timestamp_data(timestamp, filename):
     Returns: array containing data at specified timestamp range
              if timestamp not in data, closest file to desired to time is returned
     """
-    file = open(filename, "rb")
+    file = open("udp_data.pkl", "rb")
     udp_data = pickle.load(file)
     file.close()
     try:
@@ -80,7 +83,7 @@ def fetch_timestamp_data(timestamp, filename):
         print("Timestamp not found. Closest value to desired time was used: ", data_copy[idx])
         return udp_data[data_copy[idx]]
 
-def fetch_data_range(start_time, end_time, filename):
+def fetch_data_range(start_time, end_time):
     """
     Fetch udp data within specified time range
 
@@ -92,7 +95,7 @@ def fetch_data_range(start_time, end_time, filename):
     Returns: dictionary of udp_data with timestamps in desired range
              if there is no data in specified range, and error message is printed
     """
-    file = open(filename, "rb")
+    file = open("udp_data.pkl", "rb")
     udp_data = pickle.load(file)
     file.close()
     times = list(udp_data.keys())
@@ -109,7 +112,7 @@ def fetch_data_range(start_time, end_time, filename):
         print("No timestamps exist within specified range")
         return None
 
-def read_scraped_data(filename, packet_num=None):
+def read_scraped_data():
     """
     Reads udp data stored from scrape_udp_data
 
@@ -118,18 +121,35 @@ def read_scraped_data(filename, packet_num=None):
 
     Returns: 3d numpy array of data sorted by timestamp
     """
-    file = open(filename, "rb")
+    file = open("udp_data.pkl", "rb")
     udp_data = pickle.load(file)
     file.close()
     udp_array = np.empty((0, 20, 12)) # 20 cars per packet, 12 variables per car
     for timestamp in sorted(udp_data.keys()):
         udp_array = np.append(udp_array, [udp_data[timestamp]], axis=0)
-        if packet_num is not None:
-            if udp_array.shape[0] == packet_num:
-                return udp_array[packet_num-1]
     return udp_array
 
-def read_processed_data(filename):
+def read_processed_data():
+    """
+    Reads udp data stored from read_scraped_data, if available
+
+    Parameters:
+    - filename: name of udp pickle file
+
+    Returns: 3d numpy array of data sorted by timestamp
+    """
+    try:
+        file = open("processed_data.pkl", "rb")
+        udp_data = pickle.load(file)
+        file.close()
+    except:   
+        udp_data = read_scraped_data()
+        file_write = open("processed_data.pkl", "wb")
+        pickle.dump(udp_data, file_write)
+        file_write.close()
+    return udp_data
+
+def read_rnn_data(filename):
     """
     Reads udp data stored from preprocessing
 
@@ -142,3 +162,25 @@ def read_processed_data(filename):
     udp_array = pickle.load(file)
     file.close()
     return udp_array
+
+def fetch_image_from_timestamp(timestamp, image_dir):
+    if image_dir[-1] != "/":
+        image_dir += "/"
+    previous = np.inf
+    for id in range(1, len(os.listdir(image_dir)) // 2 + 1):
+        image_json = open(image_dir + "image_{0}.json".format(id))
+        time = json.load(image_json)["timestamp"]
+        image_json.close()
+        if np.abs(timestamp - time) < previous:
+            previous = np.abs(timestamp - time)
+        else:
+            break
+    image_data = imread(image_dir + "image_{0}.jpg".format(id-1))
+    return image_data
+
+def fetch_image_from_packet_num(packet_num, image_dir):
+    file = open("udp_data.pkl", "rb")
+    udp_data = pickle.load(file)
+    file.close()
+    timestamps = sorted(udp_data.keys())
+    return fetch_image_from_timestamp(timestamps[packet_num-1], image_dir)

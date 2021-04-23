@@ -4,8 +4,9 @@ import matplotlib.path as mpltPath
 import numpy as np
 import pickle
 import math
-from shapely.geometry import Polygon, Point
-from data_scraper import fetch_data_range, read_scraped_data
+from shapely.geometry import Polygon, Point, LineString
+from data_scraper import fetch_data_range, read_scraped_data, fetch_image_from_packet_num
+from preprocessing import filter_data_in_view, pointDirectionToPose
 
 def plot_position_data(filename):
     """
@@ -75,10 +76,11 @@ def visualize_waypoint_predictions(labels, predictions):
     plt.legend()
     plt.show()
 
-def visualize_ego_view(filename, height, base, packet_num, image_dir):
+
+def visualize_ego_view(new_coordinates, packet_num, image_dir, shape_name, save=False):
     """
     Plots the field of view for the ego vehicle and the positions of cars that are in the field of view
-    Note: ego vehicle chosen to be vehicle with ID 20 because it almost always has at least one car in its field of view
+    Positions are in the ego's coordinate system
 
     Parameters:
     - filename: name of udp file
@@ -86,40 +88,57 @@ def visualize_ego_view(filename, height, base, packet_num, image_dir):
     - base: base of field of view triangle
     - timestamp: the timestamp to visualize
     """
-    udp_data = read_scraped_data(filename, packet_num)
-    if image_dir[-1] == '/':
-        img = mpimg.imread(image_dir + "image_{0}.JPG".format(packet_num))
-    else:
-        img = mpimg.imread(image_dir + "/image_{0}.JPG".format(packet_num))
-    x = udp_data[19][0]
-    z = udp_data[19][2]
-    theta = math.atan(udp_data[19][8] / udp_data[19][6])
-    if udp_data[19][6] < 0:
-        theta += math.pi
-    phi = math.atan(base/(2*height))
-    length = height / math.cos(phi)
-    p1 = (x, z)
-    p2 = (length*math.cos(theta - phi) + x, length*math.sin(theta - phi) + z)
-    p3 = (length*math.cos(theta + phi) + x, length*math.sin(theta + phi) + z)
-    view_triangle = Polygon([p1, p2, p3])
-    x1,y1 = view_triangle.exterior.xy
+    img = fetch_image_from_packet_num(packet_num, image_dir)
+    new_coordinates = new_coordinates[packet_num]
+    if shape_name == 'triangle':
+        base = 90
+        height = 30
+        p1 = (0,0)
+        p2 = (-base/2, height)
+        p3 = (base/2, height)
+        view_shape = Polygon([p1, p2, p3])
+    elif shape_name == 'trapezoid':
+        base = 80
+        height = 50
+        p1 = (-2, 0)
+        p2 = (2, 0)
+        p3 = (base/2, height)
+        p4 = (-base/2, height)
+        view_shape = Polygon([p1, p2, p3, p4])
+    elif shape_name == 'cone':
+        base = 65
+        height = 40
+        p1 = (-2, 0)
+        p2 = (2, 0)
+        p3 = (base/2, height)
+        p4 = (-base/2, height)
+        centerx, centery = 0, height
+        radius = base/2
+        start_angle, end_angle = 5, 175
+        theta = np.radians(np.linspace(start_angle, end_angle, 1000))
+        points = [p1, p2, p3]
+        for i in range(len(theta)):
+            points.append((centerx + radius * np.cos(theta[i]), centery + radius * np.sin(theta[i]) * 0.2))
+        points.append(p4)
+        view_shape = Polygon(points)
+    x1,y1 = view_shape.exterior.xy
     plt.figure(figsize=(30,12))
     plt.subplot(121)
     plt.title("Filtered Data")
-
-    for i in range(udp_data.shape[0]):
-        if view_triangle.contains(Point(udp_data[i][0], udp_data[i][2])):
-            plt.plot(udp_data[i][0],udp_data[i][2], 's', label="Vehicle {0}".format(i+1))
-        elif i == 19:
-            plt.plot(udp_data[i][0],udp_data[i][2], 's', label="Ego Vehicle")
-        else:
-            plt.plot(udp_data[i][0],udp_data[i][2], 's', label="Vehicle {0}".format(i+1))
+    for i in range(len(new_coordinates)):
+        if not np.all((new_coordinates[i] == 0)):
+            if i == 19:
+                plt.plot(new_coordinates[i][0], new_coordinates[i][2], 's', label="Ego Vehicle")
+            else:
+                plt.plot(new_coordinates[i][0], new_coordinates[i][2], 's', label="Vehicle {0}".format(i+1))
     plt.plot(x1,y1)
     plt.legend()
-    plt.xlim(0, -140)
+    plt.xlim(60, -60)
     plt.subplot(122)
     plt.title("In-Game Footage")
     plt.axis("off")
     plt.imshow(img)
-
-    plt.show()
+    if save:
+        plt.savefig("{0}/{1}.png".format(shape_name, packet_num))
+    if not save:
+        plt.show()

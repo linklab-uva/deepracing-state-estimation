@@ -2,8 +2,8 @@ import numpy as np
 from tqdm import tqdm
 import pickle
 import math
-from shapely.geometry import Polygon, Point
-from data_scraper import read_scraped_data, read_processed_data
+from shapely.geometry import Polygon, Point, LineString
+from data_scraper import read_scraped_data, read_rnn_data, read_processed_data
 
 def transform_data_for_rnn(filename, buffer_size):
     """
@@ -18,8 +18,8 @@ def transform_data_for_rnn(filename, buffer_size):
     Saves: If the files were not previously found, pickle files are saved with the names "X_data.pkl" for features and "y_data.pkl" for labels
     """
     try:
-        X_data = read_processed_data("data/X_data_" + str(buffer_size) + ".pkl")
-        y_data = read_processed_data("data/y_data_" + str(buffer_size) + ".pkl")
+        X_data = read_rnn_data("data/X_data_" + str(buffer_size) + ".pkl")
+        y_data = read_rnn_data("data/y_data_" + str(buffer_size) + ".pkl")
     except FileNotFoundError:
         print("Could not find processed data files. Creating new files...")
         udp_data = read_scraped_data(filename)
@@ -55,7 +55,7 @@ def normalize_vectors(X_data):
                 X_data[i, 3*j:3*j+3] = X_data[i, 3*j:3*j+3] / magnitude
     return X_data
 
-def filter_data_in_view(filename, height, base):
+def filter_data_in_view(shape_name):
     """
     Filter data to represent vehicles that are in the field of view of the vehicle
     Note: the vehicle ID of the ego was chosen to be vehicle #20
@@ -71,23 +71,50 @@ def filter_data_in_view(filename, height, base):
     
     Returns: Filtered data in 3-d matrix form
     """
-    udp_data = read_scraped_data(filename)
+    udp_data = read_processed_data()
     filtered_data = np.zeros((udp_data.shape[0], udp_data.shape[1], udp_data.shape[2]))
+    if shape_name == 'triangle':
+        base = 90
+        height = 30
+        p1 = (0,0)
+        p2 = (-base/2, height)
+        p3 = (base/2, height)
+        view_shape = Polygon([p1, p2, p3])
+    elif shape_name == 'trapezoid':
+        base = 80
+        height = 50
+        p1 = (-2, 0)
+        p2 = (2, 0)
+        p3 = (base/2, height)
+        p4 = (-base/2, height)
+        view_shape = Polygon([p1, p2, p3, p4])
+    elif shape_name == 'cone':
+        base = 65
+        height = 40
+        p1 = (-2, 0)
+        p2 = (2, 0)
+        p3 = (base/2, height)
+        p4 = (-base/2, height)
+        centerx, centery = 0, height
+        radius = base/2
+        start_angle, end_angle = 5, 175
+        theta = np.radians(np.linspace(start_angle, end_angle, 1000))
+        points = [p1, p2, p3]
+        for i in range(len(theta)):
+            points.append((centerx + radius * np.cos(theta[i]), centery + radius * np.sin(theta[i]) * 0.2))
+        points.append(p4)
+        view_shape = Polygon(points)
     for i in tqdm(range(udp_data.shape[0])):
-        x = udp_data[i][19][0]
-        z = udp_data[i][19][2]
-        theta = math.atan(udp_data[i][19][8] / udp_data[i][19][6])
-        if udp_data[i][19][6] < 0:
-            theta += math.pi
-        phi = math.atan(base/(2*height))
-        length = height / math.cos(phi)
-        p1 = (x, z)
-        p2 = (length*math.cos(theta - phi) + x, length*math.sin(theta - phi) + z)
-        p3 = (length*math.cos(theta + phi) + x, length*math.sin(theta + phi) + z)
-        view_triangle = Polygon([p1, p2, p3])
-        for vehicle_id in range(0, udp_data.shape[1]):
-            if view_triangle.contains(Point(udp_data[i][vehicle_id][0], udp_data[i][vehicle_id][2])) or vehicle_id == 19:
-                filtered_data[i,vehicle_id,:] = udp_data[i,vehicle_id,:]
+        _, new_coordinates = pointDirectionToPose(udp_data[i])
+        for vehicle_id in range(len(new_coordinates)):
+            if view_shape.contains(Point(new_coordinates[vehicle_id][0][3], new_coordinates[vehicle_id][2][3])) or vehicle_id == 19:
+                positions = new_coordinates[vehicle_id,0:3,3]
+                velocities = new_coordinates[vehicle_id,0:3,2]
+                forwards = new_coordinates[vehicle_id,0:3,1]
+                rightwards = new_coordinates[vehicle_id,0:3,0]
+                filtered_data[i,vehicle_id,:] = np.concatenate((positions, velocities, forwards, rightwards))
+            else:
+                filtered_data[i,vehicle_id,:] = np.zeros((1, udp_data.shape[2]))
     return filtered_data
 
 def pointDirectionToPose(udp_data : np.ndarray):
